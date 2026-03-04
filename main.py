@@ -14,7 +14,7 @@ DB_NAME = "blood_management.db"
 
 def main():
     """ Main function to run the Blood Management System """
-    db_exists = os.path.exists(DB_NAME) 
+    db_exists = os.path.exists(DB_NAME)
     try:
         conn = create_connection(DB_NAME)
         if conn is not None:
