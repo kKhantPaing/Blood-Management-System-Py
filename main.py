@@ -1,15 +1,20 @@
 """ Main application file for the Blood Management System """
 import sqlite3
-import os, sys
-from db_operations import(
+import os
+import sys
+from time import sleep
+from db_operations import (
     create_connection,
     setup_database,
     insert_user,
+    is_username_exists,
     login_user,
     reset_database,
     get_available_blood_units
 )
 from models import User
+from utils import is_strong_password
+
 
 DB_NAME = "blood_management.db"
 
@@ -26,7 +31,7 @@ def main():
                 default_view(conn)
         else:
             print("Error! cannot create the database connection.")
-    except Exception as e:
+    except sqlite3.Error as e:
         print(f"An error occurred: {e}")
 
 
@@ -34,15 +39,8 @@ def first_time_setup(conn):
     """ Set up the database and create an admin user on first run """
     clear_screen()
     setup_database(conn)
-    name = input("Enter your name: ")
-    username = input("Enter admin username: ")
-    password = input("Enter admin password: ")
-    try:
-        user = User(name, username, password)
-        insert_user(conn, user)
-        print("Admin user created successfully. You can now log in with these credentials.")
-    except sqlite3.Error as e:
-        print(f"Error creating admin user: {e}")
+    add_new_user(conn)
+    print("Database setup complete. You can now log in with your new user.")
 
 
 def default_view(conn):
@@ -92,16 +90,81 @@ def auth_user_view(conn, current_user):
         print("2. Add New Blood Unit")
         print("3. Add New Donor")
         print("4. View Donor Information")
-        print("5. Add User")
-        # choice = input("Enter your choice: ")
-        # clear_screen()
-        
+        print("5. Emergency Blood Request")
+        print("6. Add New User")
+        print("7. Reset Database")
+        print("8. Logout")
+        print("9. Exit")
+        choice = input("Enter your choice: ")
+        clear_screen()
+        if choice == '1':
+            print("Available Blood Units:")
+            available_units = get_available_blood_units(conn)
+            print("+------------+-----------------+")
+            print("| Blood Type | Available Units |")
+            print("+------------+-----------------+")
+            for blood_type, units in available_units:
+                print(f"| {blood_type:<10} | {units:>15} |")
+            print("+------------+-----------------+")
+        elif choice == '2':
+            # Code to add new blood unit
+            pass
+        elif choice == '3':
+            # Code to add new donor
+            pass
+        elif choice == '4':
+            # Code to view donor information
+            pass
+        elif choice == '5':
+            # Code to handle emergency blood request
+            pass
+        elif choice == '6':
+            # Code to add new user
+            add_new_user(conn)
+        elif choice == '7':
+            confirm = input("Are you sure you want to reset the database? This action cannot be undone. (yes/no): ")
+            if confirm.lower() == 'yes':
+                reset_database(conn)
+                print("Database has been reset. Returning to database setup.")
+                first_time_setup(conn)
+                break
+            else:
+                print("Database reset cancelled.")
+        elif choice == '8':
+            print("Logging out...")
+            sleep(3)
+            default_view(conn)
+            break
+        elif choice == '9':
+            print("Exiting the system. Goodbye!")
+            sys.exit()
+        else:
+            print("Invalid choice. Please try again.")
 
 
 def clear_screen():
     """ Clear the console screen."""
     os.system('cls' if os.name == 'nt' else 'clear')
 
-              
+
+def add_new_user(conn):
+    """ Add a new user to the system """
+    name = input("Enter user's name: ")
+    username = input("Enter username: ").strip().lower()
+    password = input("Enter password: ")
+    if is_username_exists(conn, username):
+        print("Username already exists. Please choose a different username.")
+        return
+    if not is_strong_password(password):
+        print("Password must be at least 8 characters long and include uppercase letters, lowercase letters, and numbers.")
+        return
+    try:
+        user = User(name, username, password)
+        insert_user(conn, user)
+        print("User created successfully.")
+    except sqlite3.Error as e:
+        print(f"Error creating user: {e}")
+
+
 if __name__ == "__main__":
     main()

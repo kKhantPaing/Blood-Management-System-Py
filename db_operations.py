@@ -50,25 +50,13 @@ def reset_database(conn):
         print(f"Error resetting database: {e}")
 
 
-def clear_data(conn):
-    """ Clear all data from the database tables without dropping them """
-    try:
-        c = conn.cursor()
-        c.execute("DELETE FROM users")
-        c.execute("DELETE FROM donors")
-        c.execute("DELETE FROM blood_donations")
-        print("All data cleared successfully")
-    except sqlite3.Error as e:
-        print(f"Error clearing data: {e}")
-
-
 def define_tables(conn):
     """ create tables in the SQLite database """
 
     create_user_table_sql = """ CREATE TABLE IF NOT EXISTS users (
                                     UID integer PRIMARY KEY,
                                     Name text NOT NULL,
-                                    Username text NOT NULL,
+                                    Username text NOT NULL UNIQUE,
                                     Password text NOT NULL
                                 ); """
 
@@ -164,17 +152,27 @@ def insert_blood_donation(conn, blood_donation):
     return cur.lastrowid
 
 
+def is_username_exists(conn, username):
+    """Check whether a username already exists in the users table."""
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT 1 FROM users WHERE Username=? LIMIT 1", (username.lower(),))
+    except sqlite3.Error as e:
+        print(f"Error checking username: {e}")
+        return False
+    return cur.fetchone() is not None
+
+
 def login_user(conn, username, password):
     """ Authenticate a user by username and password """
     cur = conn.cursor()
     try:
-        cur.execute("SELECT Username FROM users WHERE Username=? AND Password=?",
+        cur.execute("SELECT 1 FROM users WHERE Username=? AND Password=? LIMIT 1",
                     (username.lower(), hash_password(password)))
     except sqlite3.Error as e:
         print(f"Error during login: {e}")
         return False
-    row = cur.fetchone()
-    return row[0] if row else ""
+    return username if cur.fetchone() is not None else ""
 
 
 def get_available_blood_units(conn):

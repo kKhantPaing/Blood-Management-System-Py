@@ -1,4 +1,5 @@
 class User:
+    """ User model representing a user in the system """
     def __init__(self, name, username, password):
         self.name = name
         self.username = username
@@ -6,6 +7,7 @@ class User:
 
 
 class Donor:
+    """ Donor model representing a blood donor in the system """
     def __init__(
         self,
         name,
@@ -30,6 +32,7 @@ class Donor:
 
 
 class BloodDonation:
+    """ BloodDonation model representing a blood donation record in the system """
     def __init__(self, donor_id, blood_type, units, donation_date, expiration_date):
         self.donor_id = donor_id
         self.blood_type = blood_type
