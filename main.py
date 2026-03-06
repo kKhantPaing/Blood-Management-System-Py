@@ -1,11 +1,13 @@
 """ Main application file for the Blood Management System """
-import os
-from db_operations import (
+import sqlite3
+import os, sys
+from db_operations import(
     create_connection,
-    create_tables,
-    insert_donor,
-    get_blood_availability,
-    login_user
+    setup_database,
+    insert_user,
+    login_user,
+    reset_database,
+    get_available_blood_units
 )
 from models import User
 
@@ -30,54 +32,70 @@ def main():
 
 def first_time_setup(conn):
     """ Set up the database and create an admin user on first run """
-    create_tables(conn)
+    clear_screen()
+    setup_database(conn)
     name = input("Enter your name: ")
     username = input("Enter admin username: ")
     password = input("Enter admin password: ")
     try:
         user = User(name, username, password)
-        insert_donor(conn, user)
+        insert_user(conn, user)
         print("Admin user created successfully. You can now log in with these credentials.")
-    except Exception as e:
+    except sqlite3.Error as e:
         print(f"Error creating admin user: {e}")
 
 
 def default_view(conn):
-    """ Display the default view for users after login """
+    """ Display the default view for users who are not logged in """
     print("Welcome to the Blood Management System!")
     # Here you can add code to interact with the user, such as a menu system
     # For example:
     while True:
         print("\nMenu:")
         print("1. Login")
-        print("2. View Available Blood Types")
+        print("2. View Available Blood Units")
         print("3. Exit")
         choice = input("Enter your choice: ")
         clear_screen()
         if choice == '1':
-            username = input("Enter your username: ")
+            username = input("Enter your username: ").lower()
             password = input("Enter your password: ")
-            if login_user(conn, username, password):
-                print(f"Welcome back, {username}!")
+            current_user = login_user(conn, username, password)
+            if current_user:
                 # Display user-specific options here
-                auth_user_view(conn)
+                auth_user_view(conn, current_user)
+                break
             else:
                 print("Invalid credentials. Please try again.")
-                default_view(conn)  # Restart the login process
         elif choice == '2':
-            print("Available Blood Types:")
-            available_blood_types = get_blood_availability(conn)
-            for blood_type in available_blood_types:
-                print(f"Blood Type: {blood_type[0]}, Available Count: {blood_type[1]}")
+            print("Available Blood Units:")
+            available_units = get_available_blood_units(conn)
+            print("+------------+-----------------+")
+            print("| Blood Type | Available Units |")
+            print("+------------+-----------------+")
+            for blood_type, units in available_units:
+                print(f"| {blood_type:<10} | {units:>15} |")
+            print("+------------+-----------------+")
         elif choice == '3':
             print("Exiting the system. Goodbye!")
-            break
+            sys.exit()
         else:
             print("Invalid choice. Please try again.")
 
 
-def auth_user_view(conn):
+def auth_user_view(conn, current_user):
     """ Display user-specific view after successful login """
+    while True:
+        print(f"Welcome back, {current_user}!")
+        print("\nMenu:")
+        print("1. View Available Blood Units")
+        print("2. Add New Blood Unit")
+        print("3. Add New Donor")
+        print("4. View Donor Information")
+        print("5. Add User")
+        # choice = input("Enter your choice: ")
+        # clear_screen()
+        
 
 
 def clear_screen():
