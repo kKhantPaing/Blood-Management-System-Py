@@ -175,6 +175,18 @@ def login_user(conn, username, password):
     return username if cur.fetchone() is not None else ""
 
 
+def change_user_password(conn, username, new_password):
+    """ Change the password for a given username """
+    cur = conn.cursor()
+    try:
+        cur.execute("UPDATE users SET Password=? WHERE Username=?",
+                    (hash_password(new_password), username.lower()))
+        conn.commit()
+        print("Password updated successfully")
+    except sqlite3.Error as e:
+        print(f"Error changing password: {e}")
+
+
 def get_available_blood_units(conn):
     """ Retrieve available blood units for all blood types, showing 0 when none exist """
     cur = conn.cursor()

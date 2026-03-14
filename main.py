@@ -2,6 +2,7 @@
 import sqlite3
 import os
 import sys
+import getpass
 from time import sleep
 from db_operations import (
     create_connection,
@@ -9,6 +10,7 @@ from db_operations import (
     insert_user,
     is_username_exists,
     login_user,
+    change_user_password,
     reset_database,
     get_available_blood_units
 )
@@ -91,10 +93,9 @@ def auth_user_view(conn, current_user):
         print("3. Add New Donor")
         print("4. View Donor Information")
         print("5. Emergency Blood Request")
-        print("6. Add New User")
-        print("7. Reset Database")
-        print("8. Logout")
-        print("9. Exit")
+        print("6. Settings")
+        print("7. Logout")
+        print("8. Exit")
         choice = input("Enter your choice: ")
         clear_screen()
         if choice == '1':
@@ -119,9 +120,45 @@ def auth_user_view(conn, current_user):
             # Code to handle emergency blood request
             pass
         elif choice == '6':
-            # Code to add new user
-            add_new_user(conn)
+            # Code to settings view
+            settings_view(conn, current_user)
         elif choice == '7':
+            print("Logging out...")
+            sleep(3)
+            default_view(conn)
+            break
+        elif choice == '8':
+            print("Exiting the system. Goodbye!")
+            sys.exit()
+        else:
+            print("Invalid choice. Please try again.")
+
+
+def settings_view(conn, current_user):
+    """ Display settings view for the current user """
+    while True:
+        print(f"Settings for {current_user}:")
+        print("\nMenu:")
+        print("1. Change Password")
+        print("2. Add New User")
+        print("3. Reset Database")
+        print("4. Back to Main Menu")
+        choice = input("Enter your choice: ")
+        clear_screen()
+        if choice == '1':
+            current_password = getpass.getpass(prompt="Enter current password: ").strip()
+            if not login_user(conn, current_user, current_password):
+                print("Incorrect current password. Please try again.")
+                continue
+            new_password = getpass.getpass(prompt="Enter new password: ").strip()
+            if not is_strong_password(new_password):
+                print("Password must be at least 8 characters long and include uppercase letters, lowercase letters, and numbers.")
+                continue
+            # Code to update the user's password in the database
+            change_user_password(conn, current_user, new_password)
+        elif choice == '2':
+            add_new_user(conn)
+        elif choice == '3':
             confirm = input("Are you sure you want to reset the database? This action cannot be undone. (yes/no): ")
             if confirm.lower() == 'yes':
                 reset_database(conn)
@@ -130,14 +167,11 @@ def auth_user_view(conn, current_user):
                 break
             else:
                 print("Database reset cancelled.")
-        elif choice == '8':
-            print("Logging out...")
-            sleep(3)
-            default_view(conn)
+        elif choice == '4':
+            print("Returning to main menu...")
+            sleep(2)
+            auth_user_view(conn, current_user)
             break
-        elif choice == '9':
-            print("Exiting the system. Goodbye!")
-            sys.exit()
         else:
             print("Invalid choice. Please try again.")
 
@@ -151,7 +185,7 @@ def add_new_user(conn):
     """ Add a new user to the system """
     name = input("Enter user's name: ")
     username = input("Enter username: ").strip().lower()
-    password = input("Enter password: ")
+    password = getpass.getpass(prompt="Enter password: ").strip()
     if is_username_exists(conn, username):
         print("Username already exists. Please choose a different username.")
         return
