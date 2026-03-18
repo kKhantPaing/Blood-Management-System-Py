@@ -1,6 +1,5 @@
 """ Database operations for the Blood Management System """
 import sqlite3
-from utils import hash_password
 
 BLOOD_RELATION_DATA = [
     ("A+", "A-"), ("A+", "O+"), ("A+", "O-"),
@@ -120,7 +119,7 @@ def insert_default_blood_relationships(conn):
 def insert_user(conn, user):
     """ Insert a new user into the users table """
     name, username, password = (user.name, user.username.lower(),
-                                hash_password(user.password))
+                                user.password)
     sql = ''' INSERT INTO users(Name, Username, Password) VALUES(?,?,?) '''
     cur = conn.cursor()
     cur.execute(sql, (name, username, password))
@@ -131,7 +130,7 @@ def insert_user(conn, user):
 
 def insert_donor(conn, donor):
     """ Insert a new donor into the donors table """
-    sql = ''' INSERT INTO donors(name, phone, address, dob, gender, blood_type, 
+    sql = ''' INSERT INTO donors(name, phone, address, dob, gender, blood_type,
                 Last_Donation_Date, is_urgent_available, is_deleted)
               VALUES(?,?,?,?,?,?,?,?,?) '''
     cur = conn.cursor()
@@ -142,14 +141,17 @@ def insert_donor(conn, donor):
 
 def insert_blood_donation(conn, blood_donation):
     """ Insert a new blood donation record into the blood_donations table """
-    sql = ''' INSERT INTO blood_donations(Donor_ID, Blood_Type, Units, Donation_Date, Expiration_Date)
-              VALUES(?,?,?,?,?) '''
-    cur = conn.cursor()
-    cur.execute(sql, (blood_donation.donor_id, blood_donation.blood_type,
-                      blood_donation.units, blood_donation.donation_date,
-                      blood_donation.expiration_date))
-    conn.commit()
-    return cur.lastrowid
+    try:
+        sql = ''' INSERT INTO blood_donations(Donor_ID, Blood_Type, Units,
+                    Donation_Date, Expiration_Date)
+                  VALUES(?,?,?,?,?) '''
+        cur = conn.cursor()
+        cur.execute(sql, blood_donation)
+        conn.commit()
+        return cur.lastrowid
+    except sqlite3.Error as e:
+        print(f"Error inserting blood donation: {e}")
+        return None
 
 
 def is_username_exists(conn, username):
@@ -168,7 +170,7 @@ def login_user(conn, username, password):
     cur = conn.cursor()
     try:
         cur.execute("SELECT 1 FROM users WHERE Username=? AND Password=? LIMIT 1",
-                    (username.lower(), hash_password(password)))
+                    (username.lower(), password))
     except sqlite3.Error as e:
         print(f"Error during login: {e}")
         return False
@@ -180,11 +182,23 @@ def change_user_password(conn, username, new_password):
     cur = conn.cursor()
     try:
         cur.execute("UPDATE users SET Password=? WHERE Username=?",
-                    (hash_password(new_password), username.lower()))
+                    (new_password, username.lower()))
         conn.commit()
         print("Password updated successfully")
     except sqlite3.Error as e:
         print(f"Error changing password: {e}")
+
+
+def update_blood_donation_status(conn, expired_date):
+    """ Update the status of a blood donation record """
+    cur = conn.cursor()
+    try:
+        cur.execute("UPDATE blood_donations SET Status=? WHERE Expiration_Date<?",
+                    ("expired", expired_date))
+        conn.commit()
+        print(f"Blood donation status updated to expired for records with expiration date before {expired_date}")
+    except sqlite3.Error as e:
+        print(f"Error updating blood donation status: {e}")
 
 
 def get_available_blood_units(conn):
@@ -216,3 +230,25 @@ def get_available_blood_units(conn):
         print(f"Error retrieving blood units: {e}")
         return []
     return cur.fetchall()
+
+
+def get_all_donors_info(conn):
+    """ Retrieve all donor information from the donors table """
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT * FROM donors WHERE is_deleted=0")
+    except sqlite3.Error as e:
+        print(f"Error retrieving donors info: {e}")
+        return []
+    return cur.fetchall()
+
+
+def get_donor_info(conn, donor_id):
+    """ Retrieve donor information by donor ID """
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT * FROM donors WHERE DID=?", (donor_id,))
+    except sqlite3.Error as e:
+        print(f"Error retrieving donor info: {e}")
+        return None
+    return cur.fetchone()

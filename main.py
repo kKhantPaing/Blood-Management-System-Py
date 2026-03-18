@@ -4,18 +4,23 @@ import os
 import sys
 import getpass
 from time import sleep
+from datetime import datetime, timedelta
 from db_operations import (
     create_connection,
+    get_all_donors_info,
+    insert_donor,
     setup_database,
     insert_user,
+    insert_blood_donation,
     is_username_exists,
     login_user,
     change_user_password,
     reset_database,
-    get_available_blood_units
+    get_available_blood_units,
+    update_blood_donation_status
 )
 from models import User
-from utils import is_strong_password
+from utils import hash_password, is_strong_password
 
 
 DB_NAME = "blood_management.db"
@@ -30,6 +35,9 @@ def main():
             with conn:
                 if not db_exists:
                     first_time_setup(conn)
+                else:
+                    # Check for expired blood donations and update availability
+                    update_blood_donation_status(conn, datetime.now().strftime("%Y-%m-%d"))
                 default_view(conn)
         else:
             print("Error! cannot create the database connection.")
@@ -60,7 +68,7 @@ def default_view(conn):
         if choice == '1':
             username = input("Enter your username: ").lower()
             password = input("Enter your password: ")
-            current_user = login_user(conn, username, password)
+            current_user = login_user(conn, username, hash_password(password))
             if current_user:
                 # Display user-specific options here
                 auth_user_view(conn, current_user)
@@ -107,20 +115,40 @@ def auth_user_view(conn, current_user):
             for blood_type, units in available_units:
                 print(f"| {blood_type:<10} | {units:>15} |")
             print("+------------+-----------------+")
+            print("Press Enter to return to the main menu...")
+            input()
         elif choice == '2':
-            # Code to add new blood unit
-            pass
+            donar_id = input("Enter donor ID: ")
+            blood_type = input("Enter blood type: ")
+            units = input("Enter number of units: ")
+            donation_date = input("Enter donation date (YYYY-MM-DD): ")
+            # Assuming blood expires after 42 days
+            expiration_date = datetime.strptime(donation_date, "%Y-%m-%d") + timedelta(days=42)
+            blood_donation = (donar_id, blood_type, units, donation_date, expiration_date)
+            if insert_blood_donation(conn, blood_donation):
+                print("Blood donation added successfully.")
+            print("Press Enter to return to the main menu...")
+            input()
         elif choice == '3':
-            # Code to add new donor
-            pass
+            donar_name = input("Enter donor's name: ")
+            donar_phone = input("Enter donor's phone: ")
+            donar_address = input("Enter donor's address: ")
+            donar_dob = input("Enter donor's date of birth (YYYY-MM-DD): ")
+            donar_gender = input("Enter donor's gender: ")
+            donar_blood_type = input("Enter donor's blood type: ")
+            last_donation_date = input("Enter last donation date (YYYY-MM-DD) or leave blank if never donated: ")
+            is_urgent_available = input("Is the donor urgently available? (yes/no): ").strip().lower() == 'yes'
+            donor = (donar_name, donar_phone, donar_address, donar_dob, donar_gender, donar_blood_type,
+                     last_donation_date, is_urgent_available)
+            if insert_donor(conn, donor):
+                print("Donor added successfully.")
+            print("Press Enter to return to the main menu...")
+            input()
         elif choice == '4':
-            # Code to view donor information
-            pass
+            donar_info_view(conn, current_user)
         elif choice == '5':
-            # Code to handle emergency blood request
-            pass
+            print("Emergency Blood Request feature is under development.")
         elif choice == '6':
-            # Code to settings view
             settings_view(conn, current_user)
         elif choice == '7':
             print("Logging out...")
@@ -132,6 +160,21 @@ def auth_user_view(conn, current_user):
             sys.exit()
         else:
             print("Invalid choice. Please try again.")
+
+
+def donar_info_view(conn, current_user):
+    """ Display donor information in a tabular format """
+    donar_info = get_all_donors_info(conn)
+    print("Donor Information:")
+    print("+----+----------------+----------------+----------------+----------------+----------------+----------------+----------------+")
+    print("| DID | Name           | Phone          | Address        | DoB            | Gender         | Blood Type     | Last Donation Date |")
+    print("+----+----------------+----------------+----------------+----------------+----------------+----------------+----------------+")
+    for donor in donar_info:
+        print(f"| {donor[0]:<4} | {donor[1]:<14} | {donor[2]:<14} | {donor[3]:<14} | {donor[4]:<14} | {donor[5]:<14} | {donor[6]:<14} | {donor[7]:<16} |")
+    print("+----+----------------+----------------+----------------+----------------+----------------+----------------+----------------+")
+    print("1. Update Donor Information")
+    print("Press Q to return to the main menu...")
+    input()
 
 
 def settings_view(conn, current_user):
@@ -147,7 +190,7 @@ def settings_view(conn, current_user):
         clear_screen()
         if choice == '1':
             current_password = getpass.getpass(prompt="Enter current password: ").strip()
-            if not login_user(conn, current_user, current_password):
+            if not login_user(conn, current_user, hash_password(current_password)):
                 print("Incorrect current password. Please try again.")
                 continue
             new_password = getpass.getpass(prompt="Enter new password: ").strip()
@@ -155,7 +198,7 @@ def settings_view(conn, current_user):
                 print("Password must be at least 8 characters long and include uppercase letters, lowercase letters, and numbers.")
                 continue
             # Code to update the user's password in the database
-            change_user_password(conn, current_user, new_password)
+            change_user_password(conn, current_user, hash_password(new_password))
         elif choice == '2':
             add_new_user(conn)
         elif choice == '3':
@@ -193,7 +236,7 @@ def add_new_user(conn):
         print("Password must be at least 8 characters long and include uppercase letters, lowercase letters, and numbers.")
         return
     try:
-        user = User(name, username, password)
+        user = User(name, username, hash_password(password))
         insert_user(conn, user)
         print("User created successfully.")
     except sqlite3.Error as e:
