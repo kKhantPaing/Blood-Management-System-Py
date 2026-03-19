@@ -82,6 +82,7 @@ def define_tables(conn):
                                     Donor_ID integer NOT NULL,
                                     Blood_Type text NOT NULL CHECK(blood_type IN ('A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-')),
                                     Units integer NOT NULL,
+                                    Used_Units integer NOT NULL DEFAULT 0,
                                     Donation_Date text NOT NULL,
                                     Status text NOT NULL DEFAULT 'available' CHECK(status IN ('available', 'used', 'expired')),
                                     Expiration_Date text NOT NULL,
@@ -201,6 +202,20 @@ def update_blood_donation_status(conn, expired_date):
         print(f"Error updating blood donation status: {e}")
 
 
+def update_blood_donation_by_id(conn, bid, is_used=True, units_used=0):
+    """ Update the status of a blood donation record to used """
+    cur = conn.cursor()
+    try:
+        if is_used:
+            cur.execute("UPDATE blood_donations SET Status=? WHERE BDID=?",
+                        ("used", bid))
+        else:
+            cur.execute("UPDATE blood_donations SET Used_Units = Used_Units + ? WHERE BDID=?",
+                        (units_used, bid))
+    except sqlite3.Error as e:
+        print(f"Error updating blood donation usage: {e}")
+
+
 def get_available_blood_units(conn):
     """ Retrieve available blood units for all blood types, showing 0 when none exist """
     cur = conn.cursor()
@@ -210,7 +225,7 @@ def get_available_blood_units(conn):
             VALUES ('A+'), ('A-'), ('B+'), ('B-'), ('AB+'), ('AB-'), ('O+'), ('O-')
             ),
             available_units AS (
-                SELECT Blood_Type, SUM(Units) AS Total_Units
+                SELECT Blood_Type, SUM(Units) - SUM(Used_Units) AS Total_Units
                 FROM blood_donations
                 WHERE Expiration_Date > date('now')
                 AND Status = 'available'
@@ -252,3 +267,39 @@ def get_donor_info(conn, donor_id):
         print(f"Error retrieving donor info: {e}")
         return None
     return cur.fetchone()
+
+
+def get_blood_units_by_type(conn, blood_type):
+    """ Retrieve available blood units for a specific blood type """
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT SUM(Units) - SUM(Used_Units) AS Total_Units
+            FROM blood_donations
+            WHERE Blood_Type=?
+            AND Expiration_Date > date('now')
+            AND Status = 'available'
+        """, (blood_type,))
+    except sqlite3.Error as e:
+        print(f"Error retrieving blood units by type: {e}")
+        return 0
+    result = cur.fetchone()
+    return result[0] if result and result[0] is not None else 0
+
+
+def get_blood_types_donation_by_id(conn, blood_type):
+    """ Retrieve blood donation records for a specific blood type """
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT BDID, Units - Used_Units AS Total_Units
+            FROM blood_donations
+            WHERE Blood_Type=?
+            AND Expiration_Date > date('now')
+            AND Status = 'available'
+            ORDER BY Donation_Date ASC
+        """, (blood_type,))
+    except sqlite3.Error as e:
+        print(f"Error retrieving blood donations by type: {e}")
+        return []
+    return cur.fetchall()
