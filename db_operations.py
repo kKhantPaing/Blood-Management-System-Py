@@ -66,7 +66,7 @@ def define_tables(conn):
                                     Address text NOT NULL,
                                     DoB text NOT NULL,
                                     Gender text NOT NULL,
-                                    Blood_Type text NOT NULL CHECK(blood_type IN ('A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-')),
+                                    Blood_Type text NOT NULL CHECK(Blood_Type IN ('A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-')),
                                     Last_Donation_Date TEXT,
                                     is_urgent_available integer NOT NULL DEFAULT 1,
                                     is_deleted integer NOT NULL DEFAULT 0
@@ -74,17 +74,18 @@ def define_tables(conn):
 
     create_blood_relationship_table_sql = """ CREATE TABLE IF NOT EXISTS blood_relationships (
                                     Main_Blood_Type text NOT NULL CHECK(Main_Blood_Type IN ('A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-')),
-                                    Compatible_Blood_type text NOT NULL CHECK(Compatible_Blood_type != Main_Blood_Type AND Compatible_Blood_type IN ('A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'))
+                                    Compatible_Blood_type text NOT NULL CHECK(Compatible_Blood_type != Main_Blood_Type AND Compatible_Blood_type IN ('A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-')),
+                                    UNIQUE(Main_Blood_Type, Compatible_Blood_type)
                                 ); """
 
     create_blood_donation_table_sql = """ CREATE TABLE IF NOT EXISTS blood_donations (
                                     BDID integer PRIMARY KEY,
                                     Donor_ID integer NOT NULL,
-                                    Blood_Type text NOT NULL CHECK(blood_type IN ('A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-')),
+                                    Blood_Type text NOT NULL CHECK(Blood_Type IN ('A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-')),
                                     Units integer NOT NULL,
                                     Used_Units integer NOT NULL DEFAULT 0,
                                     Donation_Date text NOT NULL,
-                                    Status text NOT NULL DEFAULT 'available' CHECK(status IN ('available', 'used', 'expired')),
+                                    Status text NOT NULL DEFAULT 'available' CHECK(Status IN ('available', 'used', 'expired')),
                                     Expiration_Date text NOT NULL,
                                     FOREIGN KEY (Donor_ID) REFERENCES donors (DID)
                                 ); """
@@ -109,9 +110,9 @@ def create_table(conn, create_table_sql):
 
 
 def insert_default_blood_relationships(conn):
-    """ Insert default blood compatibility relations into the blood_relationships table """
-    sql = ''' INSERT INTO blood_relationships(Main_Blood_Type, Compatible_Blood_type)
-              VALUES(?,?) '''
+    """ Insert or ignore default blood compatibility relations into the blood_relationships table """
+    sql = ''' INSERT OR IGNORE INTO blood_relationships(Main_Blood_Type, Compatible_Blood_type)
+          VALUES(?,?) '''
     cur = conn.cursor()
     cur.executemany(sql, BLOOD_RELATION_DATA)
     conn.commit()
@@ -122,22 +123,30 @@ def insert_user(conn, user):
     name, username, password = (user.name, user.username.lower(),
                                 user.password)
     sql = ''' INSERT INTO users(Name, Username, Password) VALUES(?,?,?) '''
-    cur = conn.cursor()
-    cur.execute(sql, (name, username, password))
-    conn.commit()
-    print(f"User {name} inserted successfully with ID: {cur.lastrowid}")
-    return cur.lastrowid
+    try:
+        cur = conn.cursor()
+        cur.execute(sql, (name, username, password))
+        conn.commit()
+        print(f"User {name} inserted successfully with ID: {cur.lastrowid}")
+        return cur.lastrowid
+    except sqlite3.Error as e:
+        print(f"Error inserting user: {e}")
+        return None
 
 
 def insert_donor(conn, donor):
     """ Insert a new donor into the donors table """
-    sql = ''' INSERT INTO donors(name, phone, address, dob, gender, blood_type,
+    sql = ''' INSERT INTO donors(Name, Phone, Address, Dob, Gender, Blood_Type,
                 Last_Donation_Date, is_urgent_available, is_deleted)
               VALUES(?,?,?,?,?,?,?,?,?) '''
-    cur = conn.cursor()
-    cur.execute(sql, donor)
-    conn.commit()
-    return cur.lastrowid
+    try:
+        cur = conn.cursor()
+        cur.execute(sql, donor)
+        conn.commit()
+        return cur.lastrowid
+    except sqlite3.Error as e:
+        print(f"Error inserting donor: {e}")
+        return None
 
 
 def insert_blood_donation(conn, blood_donation):
@@ -175,7 +184,7 @@ def login_user(conn, username, password):
     except sqlite3.Error as e:
         print(f"Error during login: {e}")
         return False
-    return username if cur.fetchone() is not None else ""
+    return username if cur.fetchone() is not None else False
 
 
 def change_user_password(conn, username, new_password):
@@ -303,3 +312,52 @@ def get_blood_types_donation_by_id(conn, blood_type):
         print(f"Error retrieving blood donations by type: {e}")
         return []
     return cur.fetchall()
+
+
+def get_blood_type_by_donor_id(conn, donor_id):
+    """ Retrieve the blood type of a donor by donor ID """
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT Blood_Type FROM donors WHERE DID=?", (donor_id,))
+    except sqlite3.Error as e:
+        print(f"Error retrieving blood type by donor ID: {e}")
+        return None
+    result = cur.fetchone()
+    return result[0] if result else None
+
+
+def get_compatible_blood_types(conn, blood_type):
+    """ Retrieve compatible blood types for a given blood type """
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT Compatible_Blood_type
+            FROM blood_relationships
+            WHERE Main_Blood_Type=?
+        """, (blood_type,))
+    except sqlite3.Error as e:
+        print(f"Error retrieving compatible blood types: {e}")
+        return []
+    return [row[0] for row in cur.fetchall()]
+
+
+def get_blood_units_by_compatible_types(conn, compatible_types):
+    """ Retrieve total available blood units for compatible blood types """
+
+    placeholders = ','.join('?' for _ in compatible_types)
+    query = f"""
+        SELECT Blood_Type, SUM(Units) - SUM(Used_Units) AS Total_Units
+        FROM blood_donations
+        WHERE Blood_Type IN ({placeholders})
+        AND Expiration_Date > date('now')
+        AND Status = 'available'
+        GROUP BY Blood_Type
+    """
+    cur = conn.cursor()
+    try:
+        cur.execute(query, compatible_types)
+        result = cur.fetchall()
+        return result
+    except sqlite3.Error as e:
+        print(f"Error retrieving blood units by compatible types: {e}")
+        return []

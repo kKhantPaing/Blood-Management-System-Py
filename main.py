@@ -3,6 +3,7 @@ import sqlite3
 import os
 import sys
 import getpass
+import string
 from time import sleep
 from datetime import datetime, timedelta
 from db_operations import (
@@ -20,10 +21,13 @@ from db_operations import (
     reset_database,
     get_available_blood_units,
     update_blood_donation_status,
-    update_blood_donation_by_id
+    update_blood_donation_by_id,
+    get_blood_type_by_donor_id,
+    get_compatible_blood_types,
+    get_blood_units_by_compatible_types
 )
 from models import User
-from utils import hash_password, is_strong_password
+from utils import hash_password
 
 
 DB_NAME = "blood_management.db"
@@ -73,7 +77,7 @@ def default_view(conn):
 
         if choice == '1':
             username = input("Enter your username: ").lower()
-            password = input("Enter your password: ")
+            password = getpass.getpass(prompt="Enter your password: ").strip()
             current_user = login_user(conn, username, hash_password(password))
 
             if current_user:
@@ -113,26 +117,15 @@ def auth_user_view(conn, current_user):
 
         clear_screen()
 
-        if choice == '1':
+        if choice == '1':  # View Available Blood Units
             available_units_view(conn)
 
-        elif choice == '2':
+        elif choice == '2':  # Request Blood Units by Blood Type
             print("Request Blood Units by Blood Type: \n")
-            while True:
-                blood_type = input("Enter required blood type: ")
-                if blood_type in BLOOD_TYPES:
-                    break
-                else:
-                    print("Invalid blood type. Please enter a valid blood type.")
-            while True:
-                try:
-                    units = int(input("Enter number of units: "))
-                    if units < 0:
-                        print("Units cannot be negative. Please enter a valid number.")
-                    else:
-                        break
-                except ValueError:
-                    print("Invalid input for units. Please enter a number.")
+
+            blood_type = get_valid_blood_type("Enter required blood type: ", BLOOD_TYPES)
+
+            units = get_valid_units(f"Enter number of units for {blood_type}: ")
 
             available_units = get_blood_units_by_type(conn, blood_type)
 
@@ -146,102 +139,132 @@ def auth_user_view(conn, current_user):
                 if use_available == 'yes':
                     update_blood_donation_usage(conn, blood_type, available_units)
                     print(f"Request successful! {available_units} units of {blood_type} blood have been allocated to you.")
-            print("Press Enter to return to the main menu...")
-            input()
+            pause_and_return()
 
-        elif choice == '3':
-            donar_id = input("Enter donor ID: ")
+        elif choice == '3':  # Add New Blood Unit
             while True:
-                blood_type = input("Enter blood type: ")
-                if blood_type in BLOOD_TYPES:
+                donor_id = input("Enter donor ID (or type 'cancel' to go back): ")
+
+                if donor_id.lower() == 'cancel':
+                    return
+
+                blood_type = get_blood_type_by_donor_id(conn, donor_id)  # Check if donor ID exists and get blood type
+                if blood_type:
+                    print(f"Blood type for donor ID {donor_id} is {blood_type}.")
                     break
                 else:
-                    print("Invalid blood type. Please enter a valid blood type.")
-            while True:
-                try:
-                    units = int(input("Enter number of units: "))
-                    if units < 0:
-                        print("Units cannot be negative. Please enter a valid number.")
-                    else:
-                        break
-                except ValueError:
-                    print("Invalid input for units. Please enter a number.")
-            donation_date = input("Enter donation date (YYYY-MM-DD): ")
-            # Assuming blood expires after 42 days
-            expiration_date = datetime.strptime(donation_date, "%Y-%m-%d") + timedelta(days=42)
-            blood_donation = (donar_id, blood_type, units, donation_date, expiration_date)
+                    print("Invalid donor ID. Please enter a valid donor ID.")
+
+            units = get_valid_units(f"Enter number of units for {blood_type}: ")
+
+            donation_date = get_valid_date("Enter donation date (YYYY-MM-DD): ")
+            expiration_date = datetime.strptime(donation_date, "%Y-%m-%d") + timedelta(days=42)  # Blood typically expires after 42 days
+
+            blood_donation = (donor_id, blood_type, units, donation_date, expiration_date)
+
             if insert_blood_donation(conn, blood_donation):
                 print("Blood donation added successfully.")
-            print("Press Enter to return to the main menu...")
-            input()
 
-        elif choice == '4':
-            donar_name = input("Enter donor's name: ")
-            donar_phone = input("Enter donor's phone: ")
-            donar_address = input("Enter donor's address: ")
-            donar_dob = input("Enter donor's date of birth (YYYY-MM-DD): ")
-            donar_gender = input("Enter donor's gender: ")
-            while True:
-                donar_blood_type = input("Enter donor's blood type: ")
-                if donar_blood_type in BLOOD_TYPES:
-                    break
-                else:
-                    print("Invalid blood type. Please enter a valid blood type.")
-            last_donation_date = input("Enter last donation date (YYYY-MM-DD) or leave blank if never donated: ")
+            pause_and_return()
+
+        elif choice == '4':  # Add New Donor
+            donor_name = input("Enter donor's name: ")
+            donor_phone = get_valid_phone("Enter donor's phone number: ")
+            donor_address = input("Enter donor's address: ")
+            donor_dob = get_valid_date("Enter donor's date of birth (YYYY-MM-DD): ")
+            donor_gender = get_valid_gender("Enter donor's gender (Male/Female/Other): ")
+            donor_blood_type = get_valid_blood_type("Enter donor's blood type: ", BLOOD_TYPES)
+
+            last_donation_date = get_valid_date("Enter last donation date (YYYY-MM-DD) or leave blank if never donated: ", is_required=False)
             is_urgent_available = input("Is the donor urgently available? (yes/no): ").strip().lower() == 'yes'
-            donor = (donar_name, donar_phone, donar_address, donar_dob, donar_gender, donar_blood_type,
+
+            donor = (donor_name, donor_phone, donor_address, donor_dob, donor_gender, donor_blood_type,
                      last_donation_date, is_urgent_available)
-            if insert_donor(conn, donor):
-                print("Donor added successfully.")
-            print("Press Enter to return to the main menu...")
-            input()
 
-        elif choice == '5':
-            donar_info_view(conn)
+            insert_donor(conn, donor)
 
-        elif choice == '6':
-            print("Emergency Blood Request feature is under development.")
-            while True:
-                request_blood_type = input("Enter required blood type: ")
-                if request_blood_type in BLOOD_TYPES:
-                    break
-                else:
-                    print("Invalid blood type. Please enter a valid blood type.")
+            pause_and_return()
 
-            # Here you can add code to handle emergency blood requests, such as prioritizing donors with urgent availability
-            print("Press Enter to return to the main menu...")
-            input()
+        elif choice == '5':  # View Donor Information
+            donor_info_view(conn)
 
-        elif choice == '7':
+        elif choice == '6':  # Emergency Blood Request
+            print("Emergency Blood Request")
+            request_blood_type = get_valid_blood_type("Enter required blood type: ", BLOOD_TYPES)
+
+            compatible_blood_types = get_compatible_blood_types(conn, request_blood_type)
+
+            if compatible_blood_types:
+
+                while True:
+
+                    print(f"Compatible blood types for {request_blood_type}: {', '.join(compatible_blood_types)}")
+                    compatible_blood_units = get_blood_units_by_compatible_types(conn, compatible_blood_types)
+                    print("+------------+-----------------+")
+                    print("| Blood Type | Available Units |")
+                    print("+------------+-----------------+")
+                    for blood_type, units in compatible_blood_units:
+                        print(f"| {blood_type:<10} | {units:>15} |")
+                    print("+------------+-----------------+\n")
+
+                    print("1. Request Blood Units by Compatible Blood Types")
+                    print("2. Request Donors with Urgent Availability for Compatible Blood Types")
+                    print("Press B to return to the main menu...")
+                    choice = input("Enter your choice: ").strip().lower()
+
+                    if choice == 'b':
+                        print("Returning to main menu...")
+                        sleep(2)
+                        auth_user_view(conn, current_user)
+                        return
+
+                    if choice == '1':
+                        blood_type = get_valid_blood_type("Enter blood type to request: ", compatible_blood_types)
+                        units = get_valid_units(f"Enter number of units for {blood_type}: ")
+
+                        units_dict = dict(compatible_blood_units)
+                        available_units = units_dict.get(blood_type, 0)
+
+                        if available_units >= units:
+                            update_blood_donation_usage(conn, blood_type, units)
+                            print(f"Request successful! {units} units of {blood_type} blood have been allocated to you.\n\n")
+
+                        else:
+                            print(f"Sorry, only {available_units} units of {blood_type} blood are available. Your request cannot be fulfilled.")
+
+                    elif choice == '2':
+                        print("Donors with urgent availability for compatible blood types feature is under development.")
+
+        elif choice == '7':  # Settings
             settings_view(conn, current_user)
 
-        elif choice == '8':
+        elif choice == '8':  # Logout
             print("Logging out...")
             sleep(3)
             default_view(conn)
             break
 
-        elif choice == '9':
+        elif choice == '9':  # Exit
             print("Exiting the system. Goodbye!")
             sys.exit()
 
-        else:
+        else:  # Invalid choice
             print("Invalid choice. Please try again.")
 
 
-def donar_info_view(conn):
+def donor_info_view(conn):
     """ Display donor information in a tabular format """
-    donar_info = get_all_donors_info(conn)
+    donor_info = get_all_donors_info(conn)
     print("Donor Information:")
     print("+----+----------------+----------------+----------------+----------------+----------------+----------------+----------------+")
     print("| DID | Name           | Phone          | Address        | DoB            | Gender         | Blood Type     | Last Donation Date |")
     print("+----+----------------+----------------+----------------+----------------+----------------+----------------+----------------+")
-    for donor in donar_info:
+    for donor in donor_info:
         print(f"| {donor[0]:<4} | {donor[1]:<14} | {donor[2]:<14} | {donor[3]:<14} | {donor[4]:<14} | {donor[5]:<14} | {donor[6]:<14} | {donor[7]:<16} |")
     print("+----+----------------+----------------+----------------+----------------+----------------+----------------+----------------+")
-    print("1. Update Donor Information")
-    print("Press Q to return to the main menu...")
-    input()
+    print("1. Update Donor Information")  # Placeholder for future implementation
+
+    pause_and_return()
 
 
 def settings_view(conn, current_user):
@@ -252,24 +275,28 @@ def settings_view(conn, current_user):
         print("1. Change Password")
         print("2. Add New User")
         print("3. Reset Database")
-        print("4. Back to Main Menu")
-        choice = input("Enter your choice: ")
+        print("B. Back to Main Menu")
+        choice = input("Enter your choice: ").strip().lower()
+
         clear_screen()
-        if choice == '1':
-            current_password = getpass.getpass(prompt="Enter current password: ").strip()
+
+        if choice == '1':  # Change Password
+            current_password = getpass.getpass(prompt="Enter your current password: ").strip()
             if not login_user(conn, current_user, hash_password(current_password)):
                 print("Incorrect current password. Please try again.")
                 continue
-            new_password = getpass.getpass(prompt="Enter new password: ").strip()
-            if not is_strong_password(new_password):
-                print("Password must be at least 8 characters long and include uppercase letters, lowercase letters, and numbers.")
-                continue
+
+            new_password = get_valid_password()
+
             # Code to update the user's password in the database
             change_user_password(conn, current_user, hash_password(new_password))
-        elif choice == '2':
+
+        elif choice == '2':  # Add New User
             add_new_user(conn)
-        elif choice == '3':
+
+        elif choice == '3':  # Reset Database
             confirm = input("Are you sure you want to reset the database? This action cannot be undone. (yes/no): ")
+
             if confirm.lower() == 'yes':
                 reset_database(conn)
                 print("Database has been reset. Returning to database setup.")
@@ -277,7 +304,7 @@ def settings_view(conn, current_user):
                 break
             else:
                 print("Database reset cancelled.")
-        elif choice == '4':
+        elif choice == 'b':
             print("Returning to main menu...")
             sleep(2)
             auth_user_view(conn, current_user)
@@ -296,8 +323,8 @@ def available_units_view(conn):
     for blood_type, units in available_units:
         print(f"| {blood_type:<10} | {units:>15} |")
     print("+------------+-----------------+")
-    print("Press Enter to return to the main menu...")
-    input()
+
+    pause_and_return()
 
 
 def clear_screen():
@@ -309,19 +336,20 @@ def add_new_user(conn):
     """ Add a new user to the system """
     name = input("Enter user's name: ")
     username = input("Enter username: ").strip().lower()
-    password = getpass.getpass(prompt="Enter password: ").strip()
+
     if is_username_exists(conn, username):
         print("Username already exists. Please choose a different username.")
         return
-    if not is_strong_password(password):
-        print("Password must be at least 8 characters long and include uppercase letters, lowercase letters, and numbers.")
-        return
-    try:
-        user = User(name, username, hash_password(password))
-        insert_user(conn, user)
-        print("User created successfully.")
-    except sqlite3.Error as e:
-        print(f"Error creating user: {e}")
+
+    password = get_valid_password()
+
+    user = User(name, username, hash_password(password))
+    insert_user(conn, user)
+
+
+def pause_and_return():
+    """ Pause the program and wait for user input to return to the main menu """
+    input("\nPress Enter to return to the main menu...")
 
 
 def update_blood_donation_usage(conn, blood_type, units_requested=1):
@@ -329,20 +357,108 @@ def update_blood_donation_usage(conn, blood_type, units_requested=1):
     blood_units = get_blood_types_donation_by_id(conn, blood_type)
 
     try:
-        while blood_units and units_requested > 0:
-            bid, available_units = blood_units[0]
+        for bid, available_units in blood_units:
+
+            if units_requested <= 0:
+                break
 
             if available_units <= units_requested:
                 update_blood_donation_by_id(conn, bid, is_used=True)
                 units_requested -= available_units
-                blood_units.pop(0)
+
             else:
                 update_blood_donation_by_id(conn, bid, is_used=False, units_used=units_requested)
                 units_requested = 0
+
         conn.commit()
     except sqlite3.Error as e:
         conn.rollback()
         print(f"Error updating blood donation usage: {e}")
+
+
+def get_valid_blood_type(prompt, valid_types) -> str:
+    """ Get a valid blood type input from the user """
+    while True:
+        blood_type = input(prompt).strip().upper()
+        if blood_type in valid_types:
+            return blood_type
+        print("Invalid blood type. Please enter a valid one.")
+
+
+def get_valid_units(prompt: str) -> int:
+    """ Get a valid units input from the user """
+    while True:
+        try:
+            units = int(input(prompt).strip())
+            if units >= 0:
+                return units
+            print("Units cannot be negative.")
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+
+
+def get_valid_date(prompt: str, is_required: bool = True) -> str:
+    """ Get a valid date in YYYY-MM-DD format from the user """
+    while True:
+        date_str = input(prompt).strip()
+
+        if not is_required and not date_str:
+            return ""
+
+        try:
+            datetime.strptime(date_str, "%Y-%m-%d")
+            return date_str
+        except ValueError:
+            print("Invalid date format. Please enter in YYYY-MM-DD format (e.g., 2000-12-31).")
+
+
+def get_valid_phone(prompt: str) -> str:
+    """ Get a valid phone number input from the user """
+    while True:
+        phone = input(prompt).strip()
+        if phone.isdigit() and 7 <= len(phone) <= 15:
+            return phone
+        print("Invalid phone number. Please enter digits only (7–15 digits).")
+
+
+def get_valid_gender(prompt: str) -> str:
+    """ Get a valid gender input from the user """
+    while True:
+        gender = input(prompt).strip().capitalize()
+        if gender in ["Male", "Female", "Other"]:
+            return gender
+        print("Invalid input. Please enter Male, Female, or Other.")
+
+
+def get_valid_password() -> str:
+    """ Get a valid password input from the user that meets strength requirements """
+    special_chars = string.punctuation
+
+    while True:
+        password = getpass.getpass(prompt="Enter password: ").strip()
+
+        if len(password) < 8:
+            print("Password must be at least 8 characters long.")
+            continue
+        if not any(char.isupper() for char in password):
+            print("Password must contain at least one uppercase letter.")
+            continue
+        if not any(char.islower() for char in password):
+            print("Password must contain at least one lowercase letter.")
+            continue
+        if not any(char.isdigit() for char in password):
+            print("Password must contain at least one digit.")
+            continue
+        if not any(char in special_chars for char in password):
+            print("Password must contain at least one special character.")
+            continue
+
+        confirm_password = getpass.getpass(prompt="Confirm password: ").strip()
+        if password != confirm_password:
+            print("Passwords do not match. Please try again.")
+            continue
+
+        return password
 
 
 if __name__ == "__main__":
