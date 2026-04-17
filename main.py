@@ -134,12 +134,20 @@ def auth_user_view(conn, current_user):
                 print(f"Request successful! {units} units of {blood_type} blood have been allocated to you.")
             else:
                 print(f"Sorry, only {available_units} units of {blood_type} blood are available. Your request cannot be fulfilled.")
-                print("Do you want to use them? (yes/no)")
-                use_available = input().strip().lower()
-                if use_available == 'yes':
-                    update_blood_donation_usage(conn, blood_type, available_units)
-                    print(f"Request successful! {available_units} units of {blood_type} blood have been allocated to you.")
-            pause_and_return()
+                while True:
+                    print("Do you want to use them? (yes/no)")
+                    use_available = input().strip().lower()
+                    if use_available == 'yes':
+                        update_blood_donation_usage(conn, blood_type, available_units)
+                        print(f"Request successful! {available_units} units of {blood_type} blood have been allocated to you.")
+                        break
+                    elif use_available == 'no':
+                        print("Request cancelled. Returning to main menu.")
+                        break
+                    else:
+                        print("Invalid input. Please enter 'yes' or 'no'.")
+
+                pause_and_return()
 
         elif choice == '3':  # Add New Blood Unit
             while True:
@@ -347,9 +355,10 @@ def add_new_user(conn):
     insert_user(conn, user)
 
 
-def pause_and_return():
+def pause_and_return(is_directly_return=False):
     """ Pause the program and wait for user input to return to the main menu """
-    input("\nPress Enter to return to the main menu...")
+    if not is_directly_return:
+        input("\nPress Enter to return to the main menu...")
 
 
 def update_blood_donation_usage(conn, blood_type, units_requested=1):
@@ -437,8 +446,8 @@ def get_valid_password() -> str:
     while True:
         password = getpass.getpass(prompt="Enter password: ").strip()
 
-        if len(password) < 8:
-            print("Password must be at least 8 characters long.")
+        if not (8 <= len(password) <= 32):
+            print("Password must be between 8 and 32 characters long.")
             continue
         if not any(char.isupper() for char in password):
             print("Password must contain at least one uppercase letter.")
