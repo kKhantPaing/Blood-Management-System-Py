@@ -24,15 +24,16 @@ from db_operations import (
     update_blood_donation_by_id,
     get_blood_type_by_donor_id,
     get_compatible_blood_types,
-    get_blood_units_by_compatible_types
+    get_blood_units_by_compatible_types,
+    get_donor_info
 )
 from models import User
 from utils import hash_password
 
 
-DB_NAME = "blood_management.db"
+DB_NAME = "blood_management.db"  # DB Name
 
-BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
+BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]  # Blood Types
 
 
 def main():
@@ -75,26 +76,25 @@ def default_view(conn):
         choice = input("Enter your choice: ")
         clear_screen()
 
-        if choice == '1':
+        if choice == '1':  # Login
             username = input("Enter your username: ").lower()
             password = getpass.getpass(prompt="Enter your password: ").strip()
             current_user = login_user(conn, username, hash_password(password))
 
-            if current_user:
-                # Display user-specific options here
+            if current_user:  # Display user-specific options here
                 auth_user_view(conn, current_user)
                 break
             else:
                 print("Invalid credentials. Please try again.")
 
-        elif choice == '2':
+        elif choice == '2':  # View Available Blood Units
             available_units_view(conn)
 
-        elif choice == '3':
+        elif choice == '3':  # Exit
             print("Exiting the system. Goodbye!")
             sys.exit()
 
-        else:
+        else:  # Invalid choice
             print("Invalid choice. Please try again.")
 
 
@@ -270,9 +270,24 @@ def donor_info_view(conn):
     for donor in donor_info:
         print(f"| {donor[0]:<4} | {donor[1]:<14} | {donor[2]:<14} | {donor[3]:<14} | {donor[4]:<14} | {donor[5]:<14} | {donor[6]:<14} | {donor[7]:<16} |")
     print("+----+----------------+----------------+----------------+----------------+----------------+----------------+----------------+")
-    print("1. Update Donor Information")  # Placeholder for future implementation
 
-    pause_and_return()
+    print("1. Update Donor Information")
+    print("B. Back to Main Menu")
+    choice = input("Enter your choice: ").strip().lower()
+
+    if choice == '1':
+        while True:
+            result = get_donor_info(conn, input("Enter Donar ID to update: "))
+            if result is not None:
+                break
+            print("Invalid Donar Id")
+        print(f"Name: {result[0]}")
+
+    else:
+        print("Invalid choice.")
+        print("Returning to main menu...")
+        sleep(2)
+        pause_and_return(is_directly_return=True)
 
 
 def settings_view(conn, current_user):
