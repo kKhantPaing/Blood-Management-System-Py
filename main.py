@@ -22,12 +22,13 @@ from db_operations import (
     get_available_blood_units,
     update_blood_donation_status,
     update_blood_donation_by_id,
+    update_donor_info,
     get_blood_type_by_donor_id,
     get_compatible_blood_types,
     get_blood_units_by_compatible_types,
     get_donor_info
 )
-from models import User
+from models import Donor, User
 from utils import hash_password
 
 
@@ -282,6 +283,33 @@ def donor_info_view(conn):
                 break
             print("Invalid Donar Id")
         print(f"Name: {result[0]}")
+        print(f"Phone: {result[1]}")
+        print(f"Address: {result[2]}")
+        print(f"Date of Birth: {result[3]}")
+        print(f"Gender: {result[4]}")
+        print(f"Blood Type: {result[5]}")
+        print(f"Last Donation Date: {result[6]}")
+        print(f"Urgent Availability: {'Yes' if result[7] else 'No'}")
+        print("\nEnter new information (leave blank to keep current value):")
+
+        new_phone = get_valid_phone("Phone: ") or result[1]
+        new_address = input("Address: ").strip() or result[2]
+        new_last_donation_date = get_valid_date("Last Donation Date (YYYY-MM-DD): ", is_required=False) or result[6]
+        new_urgent_availability = input("Is the donor urgently available? (yes/no): ").strip().lower()
+
+        # Code to update the donor information in the database
+        donor_info = Donor(
+            id=choice,
+            name=result[0],
+            phone=new_phone,
+            address=new_address,
+            dob=result[3],
+            gender=result[4],
+            blood_type=result[5],
+            last_donation_date=new_last_donation_date,
+            is_urgent_available=(new_urgent_availability == 'yes')
+        )
+        update_donor_info(conn, donor_info)
 
     else:
         print("Invalid choice.")

@@ -1,6 +1,8 @@
 """ Database operations for the Blood Management System """
 import sqlite3
 
+from models import Donor, User
+
 BLOOD_RELATION_DATA = [
     ("A+", "A-"), ("A+", "O+"), ("A+", "O-"),
     ("A-", "O-"),
@@ -118,7 +120,7 @@ def insert_default_blood_relationships(conn):
     conn.commit()
 
 
-def insert_user(conn, user):
+def insert_user(conn, user: User):
     """ Insert a new user into the users table """
     name, username, password = (user.name, user.username.lower(),
                                 user.password)
@@ -223,6 +225,21 @@ def update_blood_donation_by_id(conn, bid, is_used=True, units_used=0):
                         (units_used, bid))
     except sqlite3.Error as e:
         print(f"Error updating blood donation usage: {e}")
+
+
+def update_donor_info(conn, donor_info: Donor):
+    """ Update donor information in the database """
+    sql = ''' UPDATE donors
+              SET Name=?, Phone=?, Address=?, Last_Donation_Date=?, is_urgent_available=?
+              WHERE DID=? '''
+    try:
+        cur = conn.cursor()
+        cur.execute(sql, (donor_info.name, donor_info.phone, donor_info.address,
+                          donor_info.last_donation_date, int(donor_info.is_urgent_available), donor_info.id))
+        conn.commit()
+        print(f"Donor information updated successfully for ID: {donor_info.id}")
+    except sqlite3.Error as e:
+        print(f"Error updating donor information: {e}")
 
 
 def get_available_blood_units(conn):
