@@ -22,17 +22,19 @@ from db_operations import (
     get_available_blood_units,
     update_blood_donation_status,
     update_blood_donation_by_id,
+    update_donor_info,
     get_blood_type_by_donor_id,
     get_compatible_blood_types,
-    get_blood_units_by_compatible_types
+    get_blood_units_by_compatible_types,
+    get_donor_info
 )
-from models import User
+from models import Donor, User
 from utils import hash_password
 
 
-DB_NAME = "blood_management.db"
+DB_NAME = "blood_management.db"  # DB Name
 
-BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
+BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]  # Blood Types
 
 
 def main():
@@ -75,26 +77,25 @@ def default_view(conn):
         choice = input("Enter your choice: ")
         clear_screen()
 
-        if choice == '1':
+        if choice == '1':  # Login
             username = input("Enter your username: ").lower()
             password = getpass.getpass(prompt="Enter your password: ").strip()
             current_user = login_user(conn, username, hash_password(password))
 
-            if current_user:
-                # Display user-specific options here
+            if current_user:  # Display user-specific options here
                 auth_user_view(conn, current_user)
                 break
             else:
                 print("Invalid credentials. Please try again.")
 
-        elif choice == '2':
+        elif choice == '2':  # View Available Blood Units
             available_units_view(conn)
 
-        elif choice == '3':
+        elif choice == '3':  # Exit
             print("Exiting the system. Goodbye!")
             sys.exit()
 
-        else:
+        else:  # Invalid choice
             print("Invalid choice. Please try again.")
 
 
@@ -134,12 +135,20 @@ def auth_user_view(conn, current_user):
                 print(f"Request successful! {units} units of {blood_type} blood have been allocated to you.")
             else:
                 print(f"Sorry, only {available_units} units of {blood_type} blood are available. Your request cannot be fulfilled.")
-                print("Do you want to use them? (yes/no)")
-                use_available = input().strip().lower()
-                if use_available == 'yes':
-                    update_blood_donation_usage(conn, blood_type, available_units)
-                    print(f"Request successful! {available_units} units of {blood_type} blood have been allocated to you.")
-            pause_and_return()
+                while True:
+                    print("Do you want to use them? (yes/no)")
+                    use_available = input().strip().lower()
+                    if use_available == 'yes':
+                        update_blood_donation_usage(conn, blood_type, available_units)
+                        print(f"Request successful! {available_units} units of {blood_type} blood have been allocated to you.")
+                        break
+                    elif use_available == 'no':
+                        print("Request cancelled. Returning to main menu.")
+                        break
+                    else:
+                        print("Invalid input. Please enter 'yes' or 'no'.")
+
+                pause_and_return()
 
         elif choice == '3':  # Add New Blood Unit
             while True:
@@ -262,9 +271,51 @@ def donor_info_view(conn):
     for donor in donor_info:
         print(f"| {donor[0]:<4} | {donor[1]:<14} | {donor[2]:<14} | {donor[3]:<14} | {donor[4]:<14} | {donor[5]:<14} | {donor[6]:<14} | {donor[7]:<16} |")
     print("+----+----------------+----------------+----------------+----------------+----------------+----------------+----------------+")
-    print("1. Update Donor Information")  # Placeholder for future implementation
 
-    pause_and_return()
+    print("1. Update Donor Information")
+    print("B. Back to Main Menu")
+    choice = input("Enter your choice: ").strip().lower()
+
+    if choice == '1':
+        while True:
+            result = get_donor_info(conn, input("Enter Donar ID to update: "))
+            if result is not None:
+                break
+            print("Invalid Donar Id")
+        print(f"Name: {result[0]}")
+        print(f"Phone: {result[1]}")
+        print(f"Address: {result[2]}")
+        print(f"Date of Birth: {result[3]}")
+        print(f"Gender: {result[4]}")
+        print(f"Blood Type: {result[5]}")
+        print(f"Last Donation Date: {result[6]}")
+        print(f"Urgent Availability: {'Yes' if result[7] else 'No'}")
+        print("\nEnter new information (leave blank to keep current value):")
+
+        new_phone = get_valid_phone("Phone: ") or result[1]
+        new_address = input("Address: ").strip() or result[2]
+        new_last_donation_date = get_valid_date("Last Donation Date (YYYY-MM-DD): ", is_required=False) or result[6]
+        new_urgent_availability = input("Is the donor urgently available? (yes/no): ").strip().lower()
+
+        # Code to update the donor information in the database
+        donor_info = Donor(
+            id=choice,
+            name=result[0],
+            phone=new_phone,
+            address=new_address,
+            dob=result[3],
+            gender=result[4],
+            blood_type=result[5],
+            last_donation_date=new_last_donation_date,
+            is_urgent_available=(new_urgent_availability == 'yes')
+        )
+        update_donor_info(conn, donor_info)
+
+    else:
+        print("Invalid choice.")
+        print("Returning to main menu...")
+        sleep(2)
+        pause_and_return(is_directly_return=True)
 
 
 def settings_view(conn, current_user):
@@ -347,9 +398,10 @@ def add_new_user(conn):
     insert_user(conn, user)
 
 
-def pause_and_return():
+def pause_and_return(is_directly_return=False):
     """ Pause the program and wait for user input to return to the main menu """
-    input("\nPress Enter to return to the main menu...")
+    if not is_directly_return:
+        input("\nPress Enter to return to the main menu...")
 
 
 def update_blood_donation_usage(conn, blood_type, units_requested=1):
@@ -437,8 +489,8 @@ def get_valid_password() -> str:
     while True:
         password = getpass.getpass(prompt="Enter password: ").strip()
 
-        if len(password) < 8:
-            print("Password must be at least 8 characters long.")
+        if not (8 <= len(password) <= 32):
+            print("Password must be between 8 and 32 characters long.")
             continue
         if not any(char.isupper() for char in password):
             print("Password must contain at least one uppercase letter.")
