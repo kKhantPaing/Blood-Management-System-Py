@@ -1,31 +1,33 @@
 # Blood Management System (Python)
 
-A simple console-based Blood Management System built with Python and SQLite. It allows administrators to manage blood donors, record blood donations, track available blood units, and handle user authentication.
+A simple console-based Blood Management System built with Python and SQLite. It helps administrators manage blood donors, record blood donations, track available inventory, and perform blood requests with compatibility handling.
 
 ---
 
 ## ✅ Features
 
-- ✅ User authentication (login / password change)
-- ✅ Add and manage donors
+- ✅ User authentication with login and password change
+- ✅ Add and manage donor records
 - ✅ Record blood donations with expiration tracking
 - ✅ View available blood units by blood type
-- ✅ Request blood units (including handling partial fulfillment)
+- ✅ Request blood units by type with partial fulfillment fallback
+- ✅ Emergency-compatible blood request lookup
+- ✅ Add new users and reset database from settings
 - ✅ Console-based menu-driven interface
-- ✅ SQLite database storage (`blood_management.db`)
+- ✅ SQLite storage using `blood_management.db`
 
 ---
 
 ## 🧰 Prerequisites
 
-- **Python 3.8+** (recommended)
-- Optionally **pytest** for running unit tests
+- **Python 3.8+**
+- Optional: **pytest** for running unit tests
 
 ---
 
 ## 🚀 Getting Started
 
-1. **Clone or download** this repository.
+1. Clone or download this repository.
 2. Open a terminal in the repository folder.
 3. Run the application:
 
@@ -33,34 +35,44 @@ A simple console-based Blood Management System built with Python and SQLite. It 
 python main.py
 ```
 
-On first run, the app will create a fresh SQLite database (`blood_management.db`) and prompt you to create the first administrator user.
+On first run, the app creates the SQLite database file `blood_management.db` and prompts you to create the first administrator user.
 
 ---
 
 ## 🧭 Usage
 
-When you run `python main.py`, you'll see a menu:
+When you run `python main.py`, the default menu offers:
 
-- **Login** — Access the full feature set
+- **Login** — Authenticate and access the admin menu
 - **View Available Blood Units** — See current stock without logging in
-- **Exit** — Close the program
+- **Exit** — Quit the application
 
-Once logged in, you can:
+### Logged-in menu options
 
-- View available blood units
+- View available blood units by blood type
 - Request blood units by blood type
-- Add new blood donations
-- Add new donors
-- View donor information
-- Change password, reset database, or add another user
+- Add a new blood donation record
+- Add a new donor record
+- View and update donor information
+- Perform an emergency blood request lookup for compatible types
+- Change password
+- Add another user
+- Reset the database
+- Logout / Exit
+
+### Supported blood types
+
+- A+, A-, B+, B-, AB+, AB-, O+, O-
+
+Blood donations are tracked with expiration dates, and expired units are automatically marked as expired on startup.
 
 ---
 
 ## 🧪 Running Tests
 
-This project includes a small test suite using `pytest`.
+This repository includes a small test suite.
 
-Install pytest (if not already installed):
+Install `pytest` if needed:
 
 ```bash
 pip install pytest
@@ -76,19 +88,19 @@ pytest unit_test.py
 
 ## 📁 Project Structure
 
-- `main.py` — Main CLI entrypoint and application logic
-- `db_operations.py` — SQLite DB setup and data-access operations
-- `models.py` — Simple data models (User / Donor / BloodDonation)
-- `utils.py` — Utility helpers (password hashing, strength check)
-- `unit_test.py` — Basic unit tests (password strength)
-- `blood_management.db` — SQLite database file (created at runtime)
+- `main.py` — Main command-line interface and user interaction flows
+- `db_operations.py` — SQLite database setup, queries, inserts, and updates
+- `models.py` — Simple `User`, `Donor`, and `BloodDonation` data models
+- `utils.py` — Utility functions such as password hashing
+- `unit_test.py` — Test suite for password validation and authentication logic
+- `blood_management.db` — SQLite database file created at runtime
 
 ---
 
 ## 🧩 Notes / Next Improvements
 
-- Add more robust input validation, error handling and test cases.
-- Implement donor update/delete
-- Emergency blood request (compatible types + urgent donor list)
-- Pagination for better views
-- Add more test cases
+- Add more robust input validation and error handling
+- Improve donor update/delete workflows
+- Complete emergency donor urgency matching
+- Expand unit tests and test coverage
+- Add a richer user interface and pagination for long lists

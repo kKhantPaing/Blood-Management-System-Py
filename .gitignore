@@ -4,3 +4,4 @@ __pycache__/
 *.db
 .gitignore
 .vscode/settings.json
+unit_test.py

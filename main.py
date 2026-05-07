@@ -299,7 +299,7 @@ def donor_info_view(conn):
 
         # Code to update the donor information in the database
         donor_info = Donor(
-            id=choice,
+            donor_id=choice,
             name=result[0],
             phone=new_phone,
             address=new_address,

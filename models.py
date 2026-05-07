@@ -10,7 +10,7 @@ class Donor:
     """ Donor model representing a blood donor in the system """
     def __init__(
         self,
-        id,
+        donor_id,
         name,
         phone,
         address,
@@ -21,7 +21,7 @@ class Donor:
         is_urgent_available=True,
         is_deleted=False,
     ):
-        self.id = id
+        self.donor_id = donor_id
         self.name = name
         self.phone = phone
         self.address = address
